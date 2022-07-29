@@ -1,0 +1,128 @@
+/*
+ * build.gradle
+ */
+
+buildscript {
+
+    ext {
+        corda_release_group = 'net.corda'
+        corda_jdk11_release_group = 'net.corda.jdk11'
+        corda_release_version = '4.10-SNAPSHOT'
+        corda_platform_version = 11
+        corda_plugin_version = '5.0.12'
+
+        kotlin_language_version = '1.2'
+        kotlin_api_version = '1.2'
+        kotlin_jvm_target = '1.8'
+        kotlin_plugin_version = '1.2.71'
+
+        quasar_version = '0.8.1_r3'
+        quasar_classifier = ''
+
+        junit_version = '4.12'
+        log4j_version = '2.17.1'
+        slf4j_version = '1.7.30'
+    }
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven { url 'https://software.r3.com/artifactory/corda' }
+        maven { url 'https://repo.gradle.org/gradle/libs-releases' }
+    }
+
+    dependencies {
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_plugin_version"
+        classpath "net.corda.plugins:cordapp:$corda_plugin_version"
+        classpath "net.corda.plugins:cordformation:$corda_plugin_version"
+        classpath "net.corda.plugins:quasar-utils:$corda_plugin_version"
+    }
+}
+
+allprojects { //Properties that you need to compile your project (The application)
+    apply plugin: 'kotlin'
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven { url 'https://jitpack.io' }
+        maven { url 'https://software.r3.com/artifactory/corda' }
+        maven { url 'https://repo.gradle.org/gradle/libs-releases' }
+    }
+
+    tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile) {
+        kotlinOptions {
+            languageVersion = kotlin_language_version
+            apiVersion = kotlin_api_version
+            jvmTarget = kotlin_jvm_target
+            javaParameters = true   // Useful for reflection.
+        }
+    }
+
+    jar {
+        preserveFileTimestamps = false
+        reproducibleFileOrder = true
+    }
+}
+
+apply plugin: 'net.corda.plugins.cordapp'
+apply plugin: 'net.corda.plugins.cordformation'
+apply plugin: 'net.corda.plugins.quasar-utils'
+
+dependencies {
+    // CorDapp dependencies.
+    cordapp project(":workflows")
+    cordapp project(":contracts")
+
+    cordaCompile "org.apache.logging.log4j:log4j-slf4j-impl:${log4j_version}"
+    cordaCompile "org.apache.logging.log4j:log4j-web:${log4j_version}"
+    cordaCompile "org.slf4j:jul-to-slf4j:$slf4j_version"
+
+    cordaRuntime "$corda_jdk11_release_group:corda:$corda_release_version"
+    cordaRuntime "$corda_jdk11_release_group:corda-core:$corda_release_version"
+    cordaRuntime "$corda_jdk11_release_group:corda-node-api:$corda_release_version"
+
+    cordaDriver "net.corda:corda-shell:4.9"
+}
+
+task deployNodes(type: net.corda.plugins.Cordform, dependsOn: ['jar']) {
+
+    nodeDefaults {
+        projectCordapp {
+            deploy = false
+        }
+        cordapp project(':contracts')
+        cordapp project(':workflows')
+        runSchemaMigration = true
+    }
+
+    node {
+        name "O=Notary,L=London,C=GB"
+        notary = [validating: false]
+        p2pPort 10002
+        rpcSettings {
+            address("localhost:10003")
+            adminAddress("localhost:10043")
+        }
+    }
+
+    node {
+        name "O=PartyA,L=London,C=GB"
+        p2pPort 10005
+        rpcSettings {
+            address("localhost:10006")
+            adminAddress("localhost:10046")
+        }
+        rpcUsers = [[user: "user1", "password": "test", "permissions": ["ALL"]]]
+    }
+
+    node {
+        name "O=PartyB,L=New York,C=US"
+        p2pPort 10008
+        rpcSettings {
+            address("localhost:10009")
+            adminAddress("localhost:10049")
+        }
+        rpcUsers = [[user: "user1", "password": "test", "permissions": ["ALL"]]]
+    }
+}
