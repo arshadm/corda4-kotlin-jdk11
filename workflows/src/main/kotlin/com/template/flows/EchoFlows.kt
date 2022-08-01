@@ -1,9 +1,17 @@
 package com.template.flows
 
 import co.paralleluniverse.fibers.Suspendable
+import com.template.contracts.TemplateContract
+import com.template.states.TemplateState
+import net.corda.core.contracts.requireThat
 import net.corda.core.flows.*
+import net.corda.core.identity.AbstractParty
+import net.corda.core.identity.CordaX500Name
+import net.corda.core.identity.Party
+import net.corda.core.transactions.SignedTransaction
+import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.ProgressTracker
-import net.corda.core.utilities.unwrap
+import java.util.stream.Collectors
 
 
 // *********
@@ -11,38 +19,54 @@ import net.corda.core.utilities.unwrap
 // *********
 @InitiatingFlow
 @StartableByRPC
-class EchoInitiatorFlow(private val message: String, private val recipient: String) : FlowLogic<Void?>() {
+class EchoInitiatorFlow(private val receiver: Party) : FlowLogic<SignedTransaction>() {
     override val progressTracker = ProgressTracker()
     @Suspendable
-    override fun call(): Void? {
-        val identityService = serviceHub.identityService
-        val recipientParty = identityService.partiesFromName(recipient, true)
-            .iterator().next()
+    override fun call(): SignedTransaction {
+        //Hello World message
+        val msg = "Hello-World"
+        val sender = ourIdentity
 
-        val session = initiateFlow(recipientParty)
-        session.send(message)
-        println("=================================")
+        // Step 1. Get a reference to the notary service on our network and our key pair.
+        // Note: ongoing work to support multiple notary identities is still in progress.
+        val notary = serviceHub.networkMapCache.getNotary(CordaX500Name.parse("O=Notary,L=London,C=GB"))
 
-        val echo = session.receive(String::class.java).unwrap {s -> s}
-        println("---------------------------------")
-        println("Echo: $echo")
+        //Compose the State that carries the Hello World message
+        val output = TemplateState(msg, sender, receiver)
 
-        return null
+        // Step 3. Create a new TransactionBuilder object.
+        val builder = TransactionBuilder(notary)
+            .addCommand(TemplateContract.Commands.Create(), listOf(sender.owningKey, receiver.owningKey))
+            .addOutputState(output)
+
+        // Step 4. Verify and sign it with our KeyPair.
+        builder.verify(serviceHub)
+        val ptx = serviceHub.signInitialTransaction(builder)
+
+        // Step 6. Collect the other party's signature using the SignTransactionFlow.
+        val otherParties: MutableList<Party> =
+            output.participants.stream().map { el: AbstractParty? -> el as Party? }.collect(Collectors.toList())
+        otherParties.remove(ourIdentity)
+        val sessions = otherParties.stream().map { el: Party? -> initiateFlow(el!!) }.collect(Collectors.toList())
+
+        val stx = subFlow(CollectSignaturesFlow(ptx, sessions))
+
+        // Step 7. Assuming no exceptions, we can now finalise the transaction
+        return subFlow(FinalityFlow(stx, sessions))
     }
 }
 
 @InitiatedBy(EchoInitiatorFlow::class)
-class EchoResponderFlow(private val counterpartySession: FlowSession) : FlowLogic<Void?>() {
+class EchoResponderFlow(private val counterpartySession: FlowSession) : FlowLogic<SignedTransaction>() {
     @Suspendable
-    override fun call(): Void? {
-        val message = counterpartySession.receive(String::class.java).unwrap { s -> s }
-        val reversed = message.reversed()
-
-        println("Inbound message: $message")
-        println("Reversed: $reversed")
-        counterpartySession.send(reversed)
-
-        return null
+    override fun call(): SignedTransaction {
+        val signTransactionFlow = object : SignTransactionFlow(counterpartySession) {
+            override fun checkTransaction(stx: SignedTransaction) = requireThat {
+                //Addition checks
+            }
+        }
+        val txId = subFlow(signTransactionFlow).id
+        return subFlow(ReceiveFinalityFlow(counterpartySession, expectedTxId = txId))
     }
 }
 
