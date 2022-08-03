@@ -28,8 +28,8 @@ configurations {
 }
 
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_api_version"
-    testCompile "org.jetbrains.kotlin:kotlin-test:$kotlin_api_version"
+    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_lib_version"
+    testCompile "org.jetbrains.kotlin:kotlin-test:$kotlin_lib_version"
     testCompile "junit:junit:$junit_version"
 
     // Corda dependencies.

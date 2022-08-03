@@ -25,8 +25,8 @@ class FlowTests {
                 TestCordapp.findCordapp("com.template.flows")
         ),
             notarySpecs = listOf(MockNetworkNotarySpec(CordaX500Name("Notary","London","GB")))))
-        a = network.createPartyNode()
-        b = network.createPartyNode()
+        a = network.createPartyNode(CordaX500Name("PartyA", "Acme", "London", "GB"))
+        b = network.createPartyNode(CordaX500Name("PartyB", "Acme", "London", "GB"))
         network.runNetwork()
     }
 
@@ -37,7 +37,7 @@ class FlowTests {
 
     @Test
     fun dummyTest() {
-        val flow = EchoInitiatorFlow(b.info.legalIdentities[0])
+        val flow = EchoInitiatorFlow(b.info.legalIdentities[0].name.commonName!!)
         val future: Future<SignedTransaction> = a.startFlow(flow)
         network.runNetwork()
 

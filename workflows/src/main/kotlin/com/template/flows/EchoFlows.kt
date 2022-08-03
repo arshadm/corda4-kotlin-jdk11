@@ -19,10 +19,14 @@ import java.util.stream.Collectors
 // *********
 @InitiatingFlow
 @StartableByRPC
-class EchoInitiatorFlow(private val receiver: Party) : FlowLogic<SignedTransaction>() {
+class EchoInitiatorFlow(private val receiver: String) : FlowLogic<SignedTransaction>() {
     override val progressTracker = ProgressTracker()
     @Suspendable
     override fun call(): SignedTransaction {
+        val identityService = serviceHub.identityService
+        val recipientParty = identityService.partiesFromName(receiver, true)
+            .iterator().next()
+
         //Hello World message
         val msg = "Hello-World"
         val sender = ourIdentity
@@ -32,11 +36,11 @@ class EchoInitiatorFlow(private val receiver: Party) : FlowLogic<SignedTransacti
         val notary = serviceHub.networkMapCache.getNotary(CordaX500Name.parse("O=Notary,L=London,C=GB"))
 
         //Compose the State that carries the Hello World message
-        val output = TemplateState(msg, sender, receiver)
+        val output = TemplateState(msg, sender, recipientParty)
 
         // Step 3. Create a new TransactionBuilder object.
         val builder = TransactionBuilder(notary)
-            .addCommand(TemplateContract.Commands.Create(), listOf(sender.owningKey, receiver.owningKey))
+            .addCommand(TemplateContract.Commands.Create(), listOf(sender.owningKey, recipientParty.owningKey))
             .addOutputState(output)
 
         // Step 4. Verify and sign it with our KeyPair.

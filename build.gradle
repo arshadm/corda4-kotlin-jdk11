@@ -11,7 +11,7 @@ buildscript {
         corda_platform_version = 11
         corda_plugin_version = '5.0.12'
 
-        kotlin_language_version = '1.2'
+        kotlin_lib_version = '1.2.0'
         kotlin_api_version = '1.2'
         kotlin_jvm_target = '1.8'
         kotlin_plugin_version = '1.2.71'
@@ -52,7 +52,7 @@ allprojects { //Properties that you need to compile your project (The applicatio
 
     tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile) {
         kotlinOptions {
-            languageVersion = kotlin_language_version
+            languageVersion = kotlin_api_version
             apiVersion = kotlin_api_version
             jvmTarget = kotlin_jvm_target
             javaParameters = true   // Useful for reflection.
